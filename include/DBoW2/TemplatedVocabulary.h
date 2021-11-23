@@ -10,6 +10,13 @@
 #ifndef __D_T_TEMPLATED_VOCABULARY__
 #define __D_T_TEMPLATED_VOCABULARY__
 
+//#define ORIGINAL_DBOW2
+
+#ifndef ORIGINAL_DBOW2
+#include <iostream>
+#include <chrono>
+#endif
+
 #include <cassert>
 #include <cstdlib>
 #include <vector>
@@ -1472,14 +1479,36 @@ void TemplatedVocabulary<TDescriptor,F>::load(const cv::FileStorage &fs,
 
   m_nodes.resize(fn.size() + 1); // +1 to include root
   m_nodes[0].id = 0;
+  
+  std::cout << "DEBUG: Testing FileNode reading performances ..." << std::endl;
+  float t_sum = 0;
 
+#ifndef ORIGINAL_DBOW2
+  unsigned int i = 0;
+  for(cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++, i++)
+  {
+    cv::FileNode fni =  *it;
+    std::cout << "\r- nodes: " << i << "/" << std::to_string(fn.size()) << std::flush;
+    auto start = std::chrono::steady_clock::now();
+
+    NodeId nid = (int)fni["nodeId"];
+    NodeId pid = (int)fni["parentId"];
+    WordValue weight = (WordValue)fni["weight"];
+    std::string d = (std::string)fni["descriptor"];
+#else
   for(unsigned int i = 0; i < fn.size(); ++i)
   {
+    std::cout << "\r- words: " << i << "/" << std::to_string(fn.size()) << std::flush;
+    auto start = std::chrono::steady_clock::now();
+
     NodeId nid = (int)fn[i]["nodeId"];
     NodeId pid = (int)fn[i]["parentId"];
     WordValue weight = (WordValue)fn[i]["weight"];
     std::string d = (std::string)fn[i]["descriptor"];
-    
+#endif
+
+    t_sum += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
+
     m_nodes[nid].id = nid;
     m_nodes[nid].parent = pid;
     m_nodes[nid].weight = weight;
@@ -1487,20 +1516,40 @@ void TemplatedVocabulary<TDescriptor,F>::load(const cv::FileStorage &fs,
     
     F::fromString(m_nodes[nid].descriptor, d);
   }
+  std::cout << "\n   > Average time = " << std::to_string(t_sum / (fn.size())) << " ns" << std::endl;
   
   // words
   fn = fvoc["words"];
   
   m_words.resize(fn.size());
 
+  t_sum = 0;
+#ifndef ORIGINAL_DBOW2
+  i = 0;
+  for(cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++, i++)
+  {
+    cv::FileNode fni =  *it;
+    std::cout << "\r- words: " << i << "/" << std::to_string(fn.size()) << std::flush;
+    auto start = std::chrono::steady_clock::now();
+
+    NodeId wid = (int)fni["wordId"];
+    NodeId nid = (int)fni["nodeId"];
+#else
   for(unsigned int i = 0; i < fn.size(); ++i)
   {
+    std::cout << "\r- words: " << i << "/" << std::to_string(fn.size()) << std::flush;
+    auto start = std::chrono::steady_clock::now();
+
     NodeId wid = (int)fn[i]["wordId"];
     NodeId nid = (int)fn[i]["nodeId"];
+#endif
+
+    t_sum += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
     
     m_nodes[nid].word_id = wid;
     m_words[wid] = &m_nodes[nid];
   }
+  std::cout << "\n   > Average time = " << std::to_string(t_sum / (fn.size())) << " ns" << std::endl;
 }
 
 // --------------------------------------------------------------------------
